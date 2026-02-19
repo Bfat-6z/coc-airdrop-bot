@@ -1,0 +1,1 @@
+# coc-airdrop-bot
