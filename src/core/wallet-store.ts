@@ -233,15 +233,20 @@ export class WalletStore {
       ];
     }
 
-    // Append data row
+    // Append data row (PIN excluded — set separately to preserve text format)
     const newRow = sheet.addRow({
       id: wallet.id,
       walletName: wallet.walletName,
       walletAddress: wallet.walletAddress,
-      pin: wallet.pin,
+      pin: "",
       createdAt: wallet.createdAt,
       status: wallet.status,
     });
+
+    // Set PIN cell as text BEFORE assigning value (prevents "0123" → 123)
+    const pinCell = newRow.getCell(4);
+    pinCell.numFmt = "@";
+    pinCell.value = wallet.pin;
 
     // Style the new row
     this.styleDataRow(newRow, newRow.number);

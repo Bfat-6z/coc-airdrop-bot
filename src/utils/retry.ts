@@ -4,7 +4,7 @@ export interface RetryOptions {
   maxRetries: number;
   delayMs: number;
   backoffMultiplier?: number;
-  onRetry?: (attempt: number, error: Error) => void;
+  onRetry?: (attempt: number, error: Error) => void | Promise<void>;
 }
 
 export async function withRetry<T>(
@@ -31,7 +31,7 @@ export async function withRetry<T>(
       );
 
       if (onRetry) {
-        onRetry(attempt, lastError);
+        await onRetry(attempt, lastError);
       }
 
       await new Promise((resolve) => setTimeout(resolve, waitTime));

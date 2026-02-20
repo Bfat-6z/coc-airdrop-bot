@@ -91,10 +91,14 @@ export class WalletCreator {
 
   async resetApp(): Promise<void> {
     logger.info("Resetting Base App (clearing data)...");
-    adbClearAppData(
-      this.config.baseApp.packageName,
-      this.config.appium.deviceName
-    );
+    try {
+      adbClearAppData(
+        this.config.baseApp.packageName,
+        this.config.appium.deviceName
+      );
+    } catch (err) {
+      logger.warn(`Failed to clear app data (may not exist yet): ${err}`);
+    }
     await randomDelay(2000, 3000);
     logger.info("Base App data cleared");
   }
