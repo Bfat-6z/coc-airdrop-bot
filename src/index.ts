@@ -1,4 +1,4 @@
-import { loadConfig, CreateWalletConfig, generatePin } from "./core/config";
+import { loadConfig, CreateWalletConfig, WalletData, generatePin } from "./core/config";
 import { WalletStore } from "./core/wallet-store";
 import { AppiumDriver } from "./automation/appium-driver";
 import { WalletCreator } from "./automation/wallet-creator";
@@ -56,37 +56,38 @@ async function runCreate(config: CreateWalletConfig): Promise<void> {
       );
       logger.info("========================================");
 
-      // Reset app data (clear previous wallet)
-      await walletCreator.resetApp();
-      await randomDelay(3000, 5000);
-
-      // Launch app fresh
-      await walletCreator.launch();
-      await randomDelay(2000, 4000);
-
-      // Create wallet with retry
-      const walletData = await withRetry(
-        () => walletCreator.createWallet(i),
-        {
-          maxRetries: config.timing.maxRetries,
-          delayMs: 3000,
-          onRetry: async (attempt, err) => {
-            logger.warn(
-              `Wallet #${i} creation retry ${attempt}: ${err.message}`
-            );
-            // Reset app and relaunch on retry
-            await walletCreator.resetApp();
-            await randomDelay(2000, 3000);
-            await walletCreator.launch();
-            await randomDelay(2000, 4000);
-          },
-        }
-      );
-
-      if (walletData.status === "failed") {
-        failCount++;
-      } else {
+      // createWallet() handles full flow: reset -> launch -> permission -> create -> PIN -> read
+      // withRetry will re-run the entire flow on failure
+      let walletData: WalletData;
+      try {
+        walletData = await withRetry(
+          () => walletCreator.createWallet(i),
+          {
+            maxRetries: config.timing.maxRetries,
+            delayMs: 3000,
+            onRetry: async (attempt, err) => {
+              logger.warn(
+                `Wallet #${i} creation retry ${attempt}: ${err.message}`
+              );
+            },
+          }
+        );
         successCount++;
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        logger.error(
+          `Wallet #${i} failed after ${config.timing.maxRetries} retries: ${errorMsg}`
+        );
+        walletData = {
+          id: i,
+          walletName: "",
+          walletAddress: "",
+          pin,
+          createdAt: new Date().toISOString(),
+          status: "failed",
+          errorMessage: errorMsg,
+        };
+        failCount++;
       }
 
       // Save immediately to Excel
@@ -94,7 +95,7 @@ async function runCreate(config: CreateWalletConfig): Promise<void> {
 
       if (walletData.status === "created") {
         logger.info(
-          `Wallet #${i} created: ${walletData.walletName} (${walletData.walletAddress})`
+          `Wallet #${i} saved: ${walletData.walletName} (${walletData.walletAddress})`
         );
       } else {
         logger.error(
