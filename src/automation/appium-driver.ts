@@ -2,6 +2,7 @@ import { remote, Browser } from "webdriverio";
 import { CreateWalletConfig } from "../core/config";
 import { logger } from "../utils/logger";
 import { adbOpenUrl } from "./adb-helpers";
+import { spawn, ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
 
@@ -30,12 +31,121 @@ export interface WdioElement {
 export class AppiumDriver {
   private driver: Browser | null = null;
   private config: CreateWalletConfig;
+  private appiumProcess: ChildProcess | null = null;
 
   constructor(config: CreateWalletConfig) {
     this.config = config;
   }
 
+  /**
+   * Start Appium server as a child process.
+   * Waits for "listener started on" or the configured port in stdout.
+   * Timeout 30s if Appium fails to start.
+   */
+  async startAppiumServer(): Promise<void> {
+    // Check if Appium is already running on the configured port
+    if (await this.isAppiumRunning()) {
+      logger.info(
+        `Appium server already running on port ${this.config.appium.port}`
+      );
+      return;
+    }
+
+    logger.info("Starting Appium server...");
+
+    const port = this.config.appium.port;
+    const isWindows = process.platform === "win32";
+
+    const appiumProc = spawn(
+      isWindows ? "npx.cmd" : "npx",
+      ["appium", "--port", String(port), "--address", "0.0.0.0"],
+      {
+        shell: true,
+        detached: false,
+        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+          ...process.env,
+          ANDROID_HOME:
+            process.env.ANDROID_HOME || (isWindows ? "E:\\Android" : ""),
+        },
+      }
+    );
+
+    this.appiumProcess = appiumProc;
+
+    // Collect stderr for error reporting
+    let stderrChunks = "";
+    appiumProc.stderr?.on("data", (data: Buffer) => {
+      const text = data.toString();
+      stderrChunks += text;
+      logger.debug(`Appium stderr: ${text.trim()}`);
+    });
+
+    // Wait for Appium to be ready
+    const readyPattern = new RegExp(
+      `listener started on|0\\.0\\.0\\.0:${port}|localhost:${port}`
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(
+          new Error(
+            `Appium server failed to start within 30s. stderr: ${stderrChunks.slice(-500)}`
+          )
+        );
+      }, 30000);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        appiumProc.stdout?.removeAllListeners("data");
+        appiumProc.removeAllListeners("error");
+        appiumProc.removeAllListeners("exit");
+      };
+
+      appiumProc.stdout?.on("data", (data: Buffer) => {
+        const text = data.toString();
+        logger.debug(`Appium stdout: ${text.trim()}`);
+        if (readyPattern.test(text)) {
+          cleanup();
+          logger.info(
+            `Appium server started on port ${port} (pid: ${appiumProc.pid})`
+          );
+          resolve();
+        }
+      });
+
+      appiumProc.on("error", (err) => {
+        cleanup();
+        reject(new Error(`Failed to spawn Appium process: ${err.message}`));
+      });
+
+      appiumProc.on("exit", (code) => {
+        cleanup();
+        reject(
+          new Error(
+            `Appium process exited with code ${code} before becoming ready. stderr: ${stderrChunks.slice(-500)}`
+          )
+        );
+      });
+    });
+  }
+
+  private async isAppiumRunning(): Promise<boolean> {
+    try {
+      const res = await fetch(
+        `http://${this.config.appium.host}:${this.config.appium.port}/status`
+      );
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   async initialize(): Promise<void> {
+    // Start Appium server if not already running
+    await this.startAppiumServer();
+
     logger.info("Initializing Appium session...");
 
     this.driver = await remote({
@@ -243,6 +353,25 @@ export class AppiumDriver {
       }
       this.driver = null;
       logger.info("Appium session cleaned up");
+    }
+
+    if (this.appiumProcess && !this.appiumProcess.killed) {
+      logger.info("Stopping Appium server...");
+      try {
+        const pid = this.appiumProcess.pid;
+        if (pid) {
+          if (process.platform === "win32") {
+            // Windows: kill entire process tree
+            spawn("taskkill", ["/pid", String(pid), "/f", "/t"]);
+          } else {
+            this.appiumProcess.kill("SIGTERM");
+          }
+        }
+      } catch (err) {
+        logger.warn(`Error stopping Appium server: ${err}`);
+      }
+      this.appiumProcess = null;
+      logger.info("Appium server stopped");
     }
   }
 
