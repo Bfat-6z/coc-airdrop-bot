@@ -1,5 +1,5 @@
 import { remote, Browser } from "webdriverio";
-import { AppConfig } from "../core/config";
+import { CreateWalletConfig } from "../core/config";
 import { logger } from "../utils/logger";
 import { adbOpenUrl } from "./adb-helpers";
 import path from "path";
@@ -29,9 +29,9 @@ export interface WdioElement {
 
 export class AppiumDriver {
   private driver: Browser | null = null;
-  private config: AppConfig;
+  private config: CreateWalletConfig;
 
-  constructor(config: AppConfig) {
+  constructor(config: CreateWalletConfig) {
     this.config = config;
   }
 
