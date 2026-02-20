@@ -1,13 +1,13 @@
 {
   "name": "coc-airdrop-bot",
   "version": "1.0.0",
-  "description": "CLI automation tool for Clash of Coins airdrop claiming via Base App on Android Emulator",
+  "description": "CLI automation tool for Base App wallet creation on Android Emulator",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "ts-node src/index.ts",
     "dev": "ts-node src/index.ts",
-    "claim": "ts-node src/index.ts claim",
+    "create": "ts-node src/index.ts create",
     "scan": "ts-node src/index.ts scan",
     "status": "ts-node src/index.ts status",
     "reset": "ts-node src/index.ts reset",

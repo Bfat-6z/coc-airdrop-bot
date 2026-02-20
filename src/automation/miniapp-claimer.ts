@@ -1,5 +1,5 @@
 import { AppiumDriver, SelectorDef } from "./appium-driver";
-import { AppConfig } from "../core/config";
+import { CreateWalletConfig } from "../core/config";
 import { logger } from "../utils/logger";
 import { randomDelay } from "../utils/delay";
 import { takeDebugScreenshot } from "./screenshot";
@@ -90,9 +90,9 @@ const WEBVIEW_CONTEXT_PREFIX = "WEBVIEW_";
 
 export class MiniAppClaimer {
   private driver: AppiumDriver;
-  private config: AppConfig;
+  private config: CreateWalletConfig;
 
-  constructor(driver: AppiumDriver, config: AppConfig) {
+  constructor(driver: AppiumDriver, config: CreateWalletConfig) {
     this.driver = driver;
     this.config = config;
   }
