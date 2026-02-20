@@ -40,8 +40,9 @@ async function runCreate(config: CreateWalletConfig): Promise<void> {
     await withRetry(() => appiumDriver.initialize(), {
       maxRetries: 2,
       delayMs: 3000,
-      onRetry: (attempt, err) =>
-        logger.warn(`Appium init retry ${attempt}: ${err.message}`),
+      onRetry: (attempt, err) => {
+        logger.warn(`Appium init retry ${attempt}: ${err.message}`);
+      },
     });
 
     let successCount = 0;
@@ -56,7 +57,7 @@ async function runCreate(config: CreateWalletConfig): Promise<void> {
       logger.info("========================================");
 
       // Reset app data (clear previous wallet)
-      walletCreator.resetApp();
+      await walletCreator.resetApp();
       await randomDelay(3000, 5000);
 
       // Launch app fresh
@@ -74,7 +75,7 @@ async function runCreate(config: CreateWalletConfig): Promise<void> {
               `Wallet #${i} creation retry ${attempt}: ${err.message}`
             );
             // Reset app and relaunch on retry
-            walletCreator.resetApp();
+            await walletCreator.resetApp();
             await randomDelay(2000, 3000);
             await walletCreator.launch();
             await randomDelay(2000, 4000);
